@@ -145,13 +145,13 @@ Arguments
  - y: class for which we want to generate a rule
  - cmax: /
 """
-function solveSP(cmax::Int64, RgenX::Float64, RgenB::Float64, n, d, S, t)
+function solveSP(cmax::Int64, RgenX::Float64, RgenB::Float64, n::Int64, d::Int64, S::Set{Int64}, t::DataFrame)
     m = Model(with_optimizer(CPLEX.Optimizer))
 
     @variable(m, 0 <= x[1:n] <= 1)
-    @vairable(m, b[1:d], Bin)
+    @variable(m, b[1:d], Bin)
 
-    @objective(m, Max, sum(x[i] for i in S) - RgenX*sum(x[i] for i in 1:n) -RgenB*sum(b[j] for j in 1:d))
+    @objective(m, Max, sum(x[i] for i in S) - RgenX*sum(x[i] for i in 1:n) - RgenB*sum(b[j] for j in 1:d))
 
     @constraint(m, ct1[i in 1:n, j in 1:d], x[i] <= 1 + (t[i,j] - 1)*b[j])
     @constraint(m, ct2[i in 1:n, j in 1:d], x[i] >= 1 + sum((t[i,j] - 1)*b[j] for j in 1:d))
@@ -212,7 +212,7 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
         for y = 0:1
 
             println("-- Classe $y")
-            S = Set{Int64}()
+            S = Set{Int64}() # transactions of class y
             for i in 1:n
                 if (transactionClass[i,1] == y)
                     push!(S, i)
@@ -227,14 +227,12 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
                 end
             end
 
-            #TODO
-
             # Help: Let rule be a rule that you want to add to rules
             # - if it is the first rule, use: rules = rule
             # - if it is not the first rule, use: rules = append!(rules, rule)
         end
 
-        CSV.write(rulesPath, rules)
+        #CSV.write(rulesPath, rules)
 
     else
         println("=== Warning: Existing rules found, rules creation skipped")
