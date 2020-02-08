@@ -160,8 +160,18 @@ function solveSP(cmax::Int64, RgenX::Float64, RgenB::Float64, n::Int64, d::Int64
     # voir plus tard pour les contraintes de renforcement
 
     optimize!(m)
+    value = objective_value(m)
+    println("hello")
+    #xSolution = getvalue.(x)
+    xSolution = value.(x)
+    println("hello")
+    bSolution = getvalue.(b)
+    support = sum(xSolution[i] for i in S)
     println("termination status : ", termination_status(m))
-    println("objective value : ", objective_value(m))
+    println("objective value : ", value)
+    println("xSolution : ", xSolution)
+    println("bSolution : ", bSolution)
+    return support, bSolution
 end
 
 
@@ -223,7 +233,11 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
             cmax = n
             while (cmax >= n*mincovy)
                 if (nbRules == 0)
-
+                    support, rule = solveSP(cmax, RgenX, RgenB, n, d, S, t)
+                    nbRules += 1
+                    rules = rule
+                else
+                    cmax = 0
                 end
             end
 

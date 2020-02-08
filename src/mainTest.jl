@@ -12,3 +12,5 @@ resultsFolder = "../res/"
 
 
 train, test = createFeatures(dataFolder, dataSet)
+
+rules = createRules(dataSet, resultsFolder, train)
