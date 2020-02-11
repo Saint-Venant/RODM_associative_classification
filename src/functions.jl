@@ -36,7 +36,7 @@ function createFeatures(dataFolder::String, dataSet::String)
 
     # Test its existence
     if !isfile(rawDataPath)
-        println("Error in createFeatures: Input file not found: ", rawDataPath)
+        println("Error in createFeatures: fichier non trouve: ", rawDataPath)
         return
     end
 
@@ -138,15 +138,9 @@ function createFeatures(dataFolder::String, dataSet::String)
 end
 
 
-"""
-Solve the sub-problem to generate new rules
-
-Arguments
- - y: class for which we want to generate a rule
- - cmax: /
-"""
-function solveSP(cmax::Int64, RgenX::Float64, RgenB::Float64, n::Int64, d::Int64, S::Set{Int64}, t::DataFrame)
+function InitializeModel(cmax::Int64, RgenX::Float64, RgenB::Float64, n::Int64, d::Int64, S::Set{Int64}, t::DataFrame)
     m = Model(with_optimizer(CPLEX.Optimizer))
+    set_parameter(m,"CPX_PARAM_SCRIND",0)
 
     @variable(m, 0 <= x[1:n] <= 1)
     @variable(m, b[1:d], Bin)
@@ -156,41 +150,41 @@ function solveSP(cmax::Int64, RgenX::Float64, RgenB::Float64, n::Int64, d::Int64
     @constraint(m, ct1[i in 1:n, j in 1:d], x[i] <= 1 + (t[i,j] - 1)*b[j])
     @constraint(m, ct2[i in 1:n, j in 1:d], x[i] >= 1 + sum((t[i,j] - 1)*b[j] for j in 1:d))
     @constraint(m, ct3, sum(x[i] for i in 1:n) <= cmax)
+    return m,x,b
+end
 
-    # voir plus tard pour les contraintes de renforcement
-
-    optimize!(m)
-    value = objective_value(m)
-    println("hello")
-    #xSolution = getvalue.(x)
-    xSolution = value.(x)
-    println("hello")
-    bSolution = getvalue.(b)
+function P(model::AbstractModel, S::Set{Int64},x,b)
+    optimize!(model)
+    value = objective_value(model)
+    #print("la valeur du modele est $value")
+    xSolution=JuMP.value.(x)
+    bSolution=JuMP.value.(b)
+    #bSolution = getvalue.(b)
     support = sum(xSolution[i] for i in S)
-    println("termination status : ", termination_status(m))
-    println("objective value : ", value)
-    println("xSolution : ", xSolution)
-    println("bSolution : ", bSolution)
+    #println("bSolution : ", bSolution)
+    #println("support : $support")
     return support, bSolution
 end
 
+function addRule(rules,rule)
+    # Help: Let rule be a rule that you want to add to rules
+    # - if it is the first rule, use: rules = rule
+    # - if it is not the first rule, use: rules = append!(rules, rule)
+    if(isempty(rules))
+        rules=rule
+    else
+        rules= append!(rules,rule)
+    end
+    #println("rules : ",rules)
+    return(rules) #est ce bien nécessaire? Si c'est des objets mutables, non.
+end
 
-"""
-Create the association rules related to a training set
 
-Arguments
- - dataSet: name of the data ste
- - resultsFolder: name of the folser in which the rules will be written
- - train: DataFrame with the training set (each line is an individual, the first column is the class, the other are the features)
-
-Output
- - table of rules (each line is a rule, the first column corresponds to the rules class)
-"""
 function createRules(dataSet::String, resultsFolder::String, train::DataFrames.DataFrame)
 
     # Output file
     rulesPath = resultsFolder * dataSet * "_rules.csv"
-    rules = []
+    #rules = [] le mettre plus loin
 
     if !isfile(rulesPath)
 
@@ -212,38 +206,81 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
         n::Int64 = size(t, 1)
 
         mincovy::Float64 = 0.05
-        iterlim::Int64 = 5
+        iter_lim::Int64 = 5
         RgenX::Float64 = 0.1 / n
         RgenB::Float64 = 0.1 / (n * d)
+        finalAnswer=[]
+        dict_regles=Dict()
 
         ##################
         # Find the rules for each class
         ##################
         for y = 0:1
-
-            println("-- Classe $y")
+            println("-- generating rules for class $y")
             S = Set{Int64}() # transactions of class y
             for i in 1:n
                 if (transactionClass[i,1] == y)
                     push!(S, i)
                 end
             end
+            #println(S)
 
-            nbRules = 0
+            rules = []
+            support=0
+            iter = 1
             cmax = n
-            while (cmax >= n*mincovy)
-                if (nbRules == 0)
-                    support, rule = solveSP(cmax, RgenX, RgenB, n, d, S, t)
-                    nbRules += 1
-                    rules = rule
-                else
-                    cmax = 0
+            modele,x,b=InitializeModel(cmax, RgenX, RgenB, n, d, S, t)
+            #rules = []
+
+
+            while (cmax >= 97)#et peut etre ajouter la condition itérations
+                produit=n*mincovy
+                #println("cmax:$cmax, n*mincovy: $produit")
+                #println("entrée class:$y iteration:$iter, rules:$rules")
+                if (iter == 1)
+
+                    #modele,x,b=InitializeModel(cmax, RgenX, RgenB, n, d, S, t)
+                    #support, rule = solveSP(cmax, RgenX, RgenB, n, d, S, t)
+                    support, rule =P(modele,S,x,b)#rule est  le b* des slides
+                    iter += 1
+                    #rules = addRule(rules,rule)
                 end
+                #println("hello")
+                #if(iter > 1 && @isdefined rule)
+                #    rules = append!(rules, rule)
+                #    println("new rule itersup:",rule)
+                #end
+                if(@isdefined rule)
+                    rules = addRule(rules,rule)
+                    @constraint(modele,  sum(b[j] for j in 1:d if rule[j]<0.0000001)+sum(1-b[j] for j in 1:d if rule[j]>=.9999999999) >= .99999999)
+                end
+                #on empeche de regérérer cette meme regle
+                if(iter<iter_lim)
+                    supportTempo, rule =P(modele,S,x,b)
+                    if(supportTempo<support)
+                        cmax-=1 #c'est possible de l'optimiser
+                        iter=1
+                    else
+                        iter+=1
+                    end
+                else
+                    cmax-=1
+                    iter=1
+                end
+
+
+
             end
 
             # Help: Let rule be a rule that you want to add to rules
             # - if it is the first rule, use: rules = rule
             # - if it is not the first rule, use: rules = append!(rules, rule)
+        #finalAnswer=addRule(finalAnswer,rules)
+        nbreRulesY=Int(size(rules, 1)/d)
+        #reshapedRulesY=transpose(reshape(rules,d,nbreRulesY))
+        reshapedRulesY=transpose(reshape(rules,d,nbreRulesY))
+        push!(dict_regles,y=>reshapedRulesY)
+        #println(rules)
         end
 
         #CSV.write(rulesPath, rules)
@@ -254,9 +291,14 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
         #rules = CSV.read(rulesPath)
     end
 
-    println("=== ... ", size(rules, 1), " rules obtained")
 
-    return rules
+    #nbreRegles=Int(size(finalAnswer, 1)/d)
+    #reshapedRules=reshape(finalAnswer,d,nbreRegles)#juste
+    #reshapedRules=transpose(reshape(finalAnswer,d,nbreRegles))#juste aussi, mais transposé
+
+    println("========Exititng rule generation Algorithm========")
+    #return reshapedRules
+    return dict_regles
 end
 
 """
@@ -279,13 +321,10 @@ function sortRules(dataSet::String, resultsFolder::String, train::DataFrames.Dat
 
         # Transactions
         t = train[:, 2:end]
-
         # Class of the transactions
         transactionClass = train[:, 1:1]
-
         # Number of features
         d = size(t, 2)
-
         # Number of transactions
         n = size(t, 1)
 

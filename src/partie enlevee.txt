@@ -1,0 +1,129 @@
+
+"""
+Solve the sub-problem to generate new rules
+
+Arguments
+ - y: class for which we want to generate a rule
+ - cmax: /
+"""
+"""
+function solveSP(cmax::Int64, RgenX::Float64, RgenB::Float64, n::Int64, d::Int64, S::Set{Int64}, t::DataFrame)
+    m = Model(with_optimizer(CPLEX.Optimizer))
+
+    @variable(m, 0 <= x[1:n] <= 1)
+    @variable(m, b[1:d], Bin)
+
+    @objective(m, Max, sum(x[i] for i in S) - RgenX*sum(x[i] for i in 1:n) - RgenB*sum(b[j] for j in 1:d))
+
+    @constraint(m, ct1[i in 1:n, j in 1:d], x[i] <= 1 + (t[i,j] - 1)*b[j])
+    @constraint(m, ct2[i in 1:n, j in 1:d], x[i] >= 1 + sum((t[i,j] - 1)*b[j] for j in 1:d))
+    @constraint(m, ct3, sum(x[i] for i in 1:n) <= cmax)
+
+    # voir plus tard pour les contraintes de renforcement
+
+    optimize!(m)
+    value = objective_value(m)
+    #println("hello1")
+    #xSolution = getvalue.(x)
+    #xSolution = value.(x)
+    xSolution=JuMP.value.(x)
+    #println("hello2")
+    bSolution = getvalue.(b)
+    support = sum(xSolution[i] for i in S)
+    #println("termination status : ", termination_status(m))
+    #println("objective value : ", value)
+    #println("xSolution : ", xSolution)
+    println("bSolution : ", bSolution)
+    println("support : $support")
+    return support, bSolution
+end
+"""
+
+"""
+Create the association rules related to a training set
+
+Arguments
+ - dataSet: name of the data ste
+ - resultsFolder: name of the folser in which the rules will be written
+ - train: DataFrame with the training set (each line is an individual, the first column is the class, the other are the features)
+
+Output
+ - table of rules (each line is a rule, the first column corresponds to the rules class)
+"""
+"""ancienne version
+function createRules(dataSet::String, resultsFolder::String, train::DataFrames.DataFrame)
+
+    # Output file
+    rulesPath = resultsFolder * dataSet * "_rules.csv"
+    rules = []
+
+    if !isfile(rulesPath)
+
+        println("=== Generating the rules")
+
+        # Transactions
+        t::DataFrame = train[:, 2:end]
+
+        # Class of the transactions
+        # Help: to get the class of transaction nb i:
+        # - do not use: transactionClass[i]
+        # - use: transactionClass[i, 1]
+        transactionClass::DataFrame = train[:, 1:1]
+
+        # Number of features
+        d::Int64 = size(t, 2)
+
+        # Number of transactions
+        n::Int64 = size(t, 1)
+
+        mincovy::Float64 = 0.05
+        iterlim::Int64 = 5
+        RgenX::Float64 = 0.1 / n
+        RgenB::Float64 = 0.1 / (n * d)
+
+        ##################
+        # Find the rules for each class
+        ##################
+        for y = 0:1
+
+            println("-- generating rules for class $y")
+            S = Set{Int64}() # transactions of class y
+            for i in 1:n
+                if (transactionClass[i,1] == y)
+                    push!(S, i)
+                end
+            end
+
+            nbRules = 0
+            cmax = n
+            while (cmax >= n*mincovy)#et peut etre ajouter la condition itérations
+                if (nbRules == 0)
+                    support, rule = solveSP(cmax, RgenX, RgenB, n, d, S, t)
+                    nbRules += 1
+                    rules = rule
+                    #on empeche de regérérer cette meme regle
+
+                else
+                    cmax = 0
+
+                end
+            end
+
+            # Help: Let rule be a rule that you want to add to rules
+            # - if it is the first rule, use: rules = rule
+            # - if it is not the first rule, use: rules = append!(rules, rule)
+        end
+
+        #CSV.write(rulesPath, rules)
+
+    else
+        println("=== Warning: Existing rules found, rules creation skipped")
+        println("=== Loading the existing rules")
+        #rules = CSV.read(rulesPath)
+    end
+    println("========Exititng rule generation Algorithm========")
+    println("=== ... ", size(rules, 1), " rules obtained")
+
+    return rules
+end
+"""
