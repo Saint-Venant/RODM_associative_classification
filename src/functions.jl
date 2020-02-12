@@ -218,8 +218,6 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
         iter_lim::Int64 = 5
         RgenX::Float64 = 0.1 / n
         RgenB::Float64 = 0.1 / (n * d)
-        finalAnswer=[]
-        dict_regles=Dict()
 
         ##################
         # Find the rules for each class
@@ -233,14 +231,12 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
                     push!(S, i)
                 end
             end
-            #println(S)
 
 
             support=0
             iter = 1
             cmax = n
             modele,x,b=InitializeModel(cmax, RgenX, RgenB, n, d, S, t)
-            #rules = []#version avec dict
 
 
             while (cmax >= 97)#et peut etre ajouter la condition itérations
@@ -248,18 +244,9 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
                 #println("cmax:$cmax, n*mincovy: $produit")
                 #println("entrée class:$y iteration:$iter, rules:$rules")
                 if (iter == 1)
-
-                    #modele,x,b=InitializeModel(cmax, RgenX, RgenB, n, d, S, t)
-                    #support, rule = solveSP(cmax, RgenX, RgenB, n, d, S, t)
                     support, rule =P(modele,S,x,b)#rule est  le b* des slides
                     iter += 1
-                    #rules = addRule(rules,rule)
                 end
-                #println("hello")
-                #if(iter > 1 && @isdefined rule)
-                #    rules = append!(rules, rule)
-                #    println("new rule itersup:",rule)
-                #end
                 if(@isdefined rule)
                     #rules = addRule(rules,rule)
                     push!(rules,append!([y],rule))
@@ -287,13 +274,6 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
             # Help: Let rule be a rule that you want to add to rules
             # - if it is the first rule, use: rules = rule
             # - if it is not the first rule, use: rules = append!(rules, rule)
-        #finalAnswer=addRule(finalAnswer,rules)
-        nbreRulesY=Int(size(rules, 1)/d)
-        #reshapedRulesY=transpose(reshape(rules,d,nbreRulesY))
-        #reshapedRulesY=transpose(reshape(rules,d,nbreRulesY))
-        #push!(dict_regles,y=>reshapedRulesY)
-
-        #println(rules)
         end
 
         #CSV.write(rulesPath, rules)
@@ -301,17 +281,10 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
     else
         println("=== Warning: Existing rules found, rules creation skipped")
         println("=== Loading the existing rules")
-        #rules = CSV.read(rulesPath)
+        rules = CSV.read(rulesPath)
     end
 
-
-    #nbreRegles=Int(size(finalAnswer, 1)/d)
-    #reshapedRules=reshape(finalAnswer,d,nbreRegles)#juste
-    #reshapedRules=transpose(reshape(finalAnswer,d,nbreRegles))#juste aussi, mais transposé
-
     println("========Exititng rule generation Algorithm========")
-    #return reshapedRules
-    #return dict_regles
     return rules
 end
 

@@ -9,8 +9,8 @@ using Random
 include("functions.jl")
 
 dataSet = "kidney"
-dataFolder = "C:\\Users\\thibaut\\Documents\\Ponts_3A\\CNAM\\RODM\\data\\"
-resultsFolder = "C:\\Users\\thibaut\\Documents\\Ponts_3A\\CNAM\\RODM\\res\\"
+dataFolder = "../data/"
+resultsFolder = "../res/"
 
 rawDataPath = dataFolder * dataSet * ".csv"
 #println(isfile(rawDataPath))
@@ -25,7 +25,7 @@ println("=============Règles trouvées==========")
 #println("rulesMain",rulesMain)
 
 println("=============Début Tri==========")
-timeLimitInSeconds = 300
+timeLimitInSeconds = 10
 orderedRules = sortRules(dataSet, resultsFolder, train, rulesMain, timeLimitInSeconds)
 println("=============Fin Tri==========")
 
