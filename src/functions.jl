@@ -173,26 +173,11 @@ function P(model::AbstractModel, S::Set{Int64},x,b)
     return support, bSolution
 end
 
-function addRule(rules,rule)
-    # Help: Let rule be a rule that you want to add to rules
-    # - if it is the first rule, use: rules = rule
-    # - if it is not the first rule, use: rules = append!(rules, rule)
-
-    if(isempty(rules))
-        rules=rule
-    else
-        rules= append!(rules,rule)
-    end
-    #println("rules : ",rules)
-    return(rules) #est ce bien nécessaire? Si c'est des objets mutables, non.
-end
-
 
 function createRules(dataSet::String, resultsFolder::String, train::DataFrames.DataFrame)
 
     # Output file
     rulesPath = resultsFolder * dataSet * "_rules.csv"
-    #rules = [] le mettre plus loin
     rules::DataFrame = similar(train,0)
 
     if !isfile(rulesPath)
@@ -236,26 +221,24 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
             support=0
             iter = 1
             cmax = n
-            modele,x,b=InitializeModel(cmax, RgenX, RgenB, n, d, S, t)
+            modelY,x,b=InitializeModel(cmax, RgenX, RgenB, n, d, S, t)
 
 
             while (cmax >= 97)#et peut etre ajouter la condition itérations
                 produit=n*mincovy
-                #println("cmax:$cmax, n*mincovy: $produit")
-                #println("entrée class:$y iteration:$iter, rules:$rules")
                 if (iter == 1)
-                    support, rule =P(modele,S,x,b)#rule est  le b* des slides
+                    support, rule =P(modelY,S,x,b)#rule est  le b* des slides
                     iter += 1
                 end
                 if(@isdefined rule)
                     #rules = addRule(rules,rule)
                     push!(rules,append!([y],rule))
-                    @constraint(modele,  sum(b[j] for j in 1:d if rule[j]==0)+sum(1-b[j] for j in 1:d if rule[j]==1) >= 1)
-                    #@constraint(modele,  sum(b[j] for j in 1:d if rule[j]<0.0000001)+sum(1-b[j] for j in 1:d if rule[j]>=.9999999999) >= .99999999)
+                    @constraint(modelY,  sum(b[j] for j in 1:d if rule[j]==0)+sum(1-b[j] for j in 1:d if rule[j]==1) >= 1)
+                    #@constraint(modelY,  sum(b[j] for j in 1:d if rule[j]<0.0000001)+sum(1-b[j] for j in 1:d if rule[j]>=.9999999999) >= .99999999)
                 end
                 #on empeche de regérérer cette meme regle
                 if(iter<iter_lim)
-                    supportTempo, rule =P(modele,S,x,b)
+                    supportTempo, rule =P(modelY,S,x,b)
                     if(supportTempo<support)
                         cmax-=1 #c'est possible de l'optimiser
                         iter=1
