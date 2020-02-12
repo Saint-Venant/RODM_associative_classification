@@ -104,6 +104,13 @@ function createFeatures(dataFolder::String, dataSet::String)
             createColumns(:age, [0, 17, 50, Inf], rawData, features)
             # bp
             createColumns(:bp, [0, 80, Inf], rawData, features)
+            #red blood cells
+            #createColumns(:rbc, [0, 80, Inf], rawData, features)
+            features.pc = ifelse.(rawData.pc .== "normal", 1, 0)
+            # hypertension
+            #features.htn = ifelse.(rawData.htn .== "yes", 1, 0)
+            # cad
+            #features.cad = ifelse.(rawData.cad .== "yes", 1, 0)
 
         end
 
@@ -170,6 +177,7 @@ function addRule(rules,rule)
     # Help: Let rule be a rule that you want to add to rules
     # - if it is the first rule, use: rules = rule
     # - if it is not the first rule, use: rules = append!(rules, rule)
+
     if(isempty(rules))
         rules=rule
     else
@@ -185,6 +193,7 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
     # Output file
     rulesPath = resultsFolder * dataSet * "_rules.csv"
     #rules = [] le mettre plus loin
+    rules::DataFrame = similar(train,0)
 
     if !isfile(rulesPath)
 
@@ -215,6 +224,7 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
         ##################
         # Find the rules for each class
         ##################
+
         for y = 0:1
             println("-- generating rules for class $y")
             S = Set{Int64}() # transactions of class y
@@ -225,12 +235,12 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
             end
             #println(S)
 
-            rules = []
+
             support=0
             iter = 1
             cmax = n
             modele,x,b=InitializeModel(cmax, RgenX, RgenB, n, d, S, t)
-            #rules = []
+            #rules = []#version avec dict
 
 
             while (cmax >= 97)#et peut etre ajouter la condition itérations
@@ -251,8 +261,10 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
                 #    println("new rule itersup:",rule)
                 #end
                 if(@isdefined rule)
-                    rules = addRule(rules,rule)
-                    @constraint(modele,  sum(b[j] for j in 1:d if rule[j]<0.0000001)+sum(1-b[j] for j in 1:d if rule[j]>=.9999999999) >= .99999999)
+                    #rules = addRule(rules,rule)
+                    push!(rules,append!([y],rule))
+                    @constraint(modele,  sum(b[j] for j in 1:d if rule[j]==0)+sum(1-b[j] for j in 1:d if rule[j]==1) >= 1)
+                    #@constraint(modele,  sum(b[j] for j in 1:d if rule[j]<0.0000001)+sum(1-b[j] for j in 1:d if rule[j]>=.9999999999) >= .99999999)
                 end
                 #on empeche de regérérer cette meme regle
                 if(iter<iter_lim)
@@ -278,8 +290,9 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
         #finalAnswer=addRule(finalAnswer,rules)
         nbreRulesY=Int(size(rules, 1)/d)
         #reshapedRulesY=transpose(reshape(rules,d,nbreRulesY))
-        reshapedRulesY=transpose(reshape(rules,d,nbreRulesY))
-        push!(dict_regles,y=>reshapedRulesY)
+        #reshapedRulesY=transpose(reshape(rules,d,nbreRulesY))
+        #push!(dict_regles,y=>reshapedRulesY)
+
         #println(rules)
         end
 
@@ -298,7 +311,8 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
 
     println("========Exititng rule generation Algorithm========")
     #return reshapedRules
-    return dict_regles
+    #return dict_regles
+    return rules
 end
 
 """
@@ -447,11 +461,12 @@ function sortRules(dataSet::String, resultsFolder::String, train::DataFrames.Dat
 
         # Sort the rules and their class by decreasing rank
         rulesOrder = JuMP.value.(r)
+        println(rulesOrder)
         orderedRules = rules[sortperm(L.-rulesOrder), :]
 
         orderedRules = orderedRules[1:relevantNbOfRules, :]
 
-        CSV.write(orderedRulesPath, orderedRules)
+        #CSV.write(orderedRulesPath, orderedRules)
 
     else
         println("=== Warning: Sorted rules found, sorting of the rules skipped")

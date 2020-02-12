@@ -17,13 +17,19 @@ rawDataPath = dataFolder * dataSet * ".csv"
 #print(cd(readdir,dataFolder))
 
 #modelTest= Model(with_optimizer(CPLEX.Optimizer))
-
+println("début prgm")
 train, test = createFeatures(dataFolder, dataSet)
 
-dict_regles = createRules(dataSet, resultsFolder, train)
+rulesMain = createRules(dataSet, resultsFolder, train)
 println("=============Règles trouvées==========")
-#println("size rules",size(rules))
-println("dict_regles",dict_regles)
+#println("rulesMain",rulesMain)
 
+println("=============Début Tri==========")
 timeLimitInSeconds = 300
-#orderedRules = sortRules(dataSet, resultsFolder, train, rules, timeLimitInSeconds)
+orderedRules = sortRules(dataSet, resultsFolder, train, rulesMain, timeLimitInSeconds)
+println("=============Fin Tri==========")
+
+println("-- Train results")
+showStatistics(orderedRules, train)
+println("-- Test results")
+showStatistics(orderedRules, test)
