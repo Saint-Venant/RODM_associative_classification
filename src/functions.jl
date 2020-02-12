@@ -101,16 +101,20 @@ function createFeatures(dataFolder::String, dataSet::String)
             # add class
             features.class = ifelse.(rawData.class .== "ckd", 1, 0)
             # age
-            createColumns(:age, [0, 17, 50, Inf], rawData, features)
+            #createColumns(:age, [0, 17, 50, Inf], rawData, features)
             # bp
-            createColumns(:bp, [0, 80, Inf], rawData, features)
+            #createColumns(:bp, [0, 80, Inf], rawData, features)
             #red blood cells
             #createColumns(:rbc, [0, 80, Inf], rawData, features)
-            features.pc = ifelse.(rawData.pc .== "normal", 1, 0)
+            #features.pc = ifelse.(rawData.pc .== "normal", 1, 0)
             # hypertension
             #features.htn = ifelse.(rawData.htn .== "yes", 1, 0)
             # cad
             #features.cad = ifelse.(rawData.cad .== "yes", 1, 0)
+
+            createColumns(:age, [0, 45, Inf], rawData, features)
+            createColumns(:bp, [0, 80, Inf], rawData, features)
+            features.sg = ifelse.(rawData.sg .==1.020 , 1, 0) .+ ifelse.(rawData.sg .==1.025 , 1, 0)
 
         end
 
@@ -161,7 +165,7 @@ function InitializeModel(cmax::Int64, RgenX::Float64, RgenB::Float64, n::Int64, 
 end
 
 function P(model::AbstractModel, S::Set{Int64},x,b)
-    optimize!(model)
+    #optimize!(model)
     value = objective_value(model)
     #print("la valeur du modele est $value")
     xSolution=JuMP.value.(x)
@@ -218,40 +222,41 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
             end
 
 
-            support=0
+            support=n+1
             iter = 1
             cmax = n
             modelY,x,b=InitializeModel(cmax, RgenX, RgenB, n, d, S, t)
 
 
-            while (cmax >= 97)#et peut etre ajouter la condition itérations
-                produit=n*mincovy
-                if (iter == 1)
-                    support, rule =P(modelY,S,x,b)#rule est  le b* des slides
-                    iter += 1
-                end
-                if(@isdefined rule)
-                    #rules = addRule(rules,rule)
-                    push!(rules,append!([y],rule))
-                    @constraint(modelY,  sum(b[j] for j in 1:d if rule[j]==0)+sum(1-b[j] for j in 1:d if rule[j]==1) >= 1)
-                    #@constraint(modelY,  sum(b[j] for j in 1:d if rule[j]<0.0000001)+sum(1-b[j] for j in 1:d if rule[j]>=.9999999999) >= .99999999)
-                end
-                #on empeche de regérérer cette meme regle
-                if(iter<iter_lim)
-                    supportTempo, rule =P(modelY,S,x,b)
-                    if(supportTempo<support)
-                        cmax-=1 #c'est possible de l'optimiser
-                        iter=1
+            while (cmax >= n*mincovy)#et peut etre ajouter la condition itérations
+                #produit=n*mincovy
+                println("cmax : ", cmax)
+                if iter<iter_lim
+                    optimize!(modelY)
+                    println(" > optimize")
+                    if termination_status(modelY) == MOI.OPTIMAL
+                        println(" >   success")
+                        println(" > iter ", iter)
+                        supportTemp, rule =P(modelY,S,x,b)
+                        if iter == 1
+                            support = supportTemp
+                        end
+                        if supportTemp >= support
+                            println(" >   add rule")
+                            push!(rules,append!([y],rule))
+                            @constraint(modelY,  sum(b[j] for j in 1:d if rule[j]==0)+sum(1-b[j] for j in 1:d if rule[j]==1) >= 1)
+                            iter += 1
+                        else
+                            cmax -= 1
+                            iter = 1
+                        end
                     else
-                        iter+=1
+                        break
                     end
                 else
-                    cmax-=1
-                    iter=1
+                    cmax -= 1
+                    iter = 1
                 end
-
-
-
             end
 
             # Help: Let rule be a rule that you want to add to rules

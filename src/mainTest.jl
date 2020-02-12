@@ -25,7 +25,7 @@ println("=============Règles trouvées==========")
 #println("rulesMain",rulesMain)
 
 println("=============Début Tri==========")
-timeLimitInSeconds = 10
+timeLimitInSeconds = 300
 orderedRules = sortRules(dataSet, resultsFolder, train, rulesMain, timeLimitInSeconds)
 println("=============Fin Tri==========")
 
