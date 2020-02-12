@@ -100,21 +100,18 @@ function createFeatures(dataFolder::String, dataSet::String)
 
             # add class
             features.class = ifelse.(rawData.class .== "ckd", 1, 0)
-            # age
-            #createColumns(:age, [0, 17, 50, Inf], rawData, features)
-            # bp
-            #createColumns(:bp, [0, 80, Inf], rawData, features)
-            #red blood cells
-            #createColumns(:rbc, [0, 80, Inf], rawData, features)
-            #features.pc = ifelse.(rawData.pc .== "normal", 1, 0)
-            # hypertension
-            #features.htn = ifelse.(rawData.htn .== "yes", 1, 0)
-            # cad
-            #features.cad = ifelse.(rawData.cad .== "yes", 1, 0)
 
+            #createColumns(:age, [0, 17, 50, Inf], rawData, features)
             createColumns(:age, [0, 45, Inf], rawData, features)
             createColumns(:bp, [0, 80, Inf], rawData, features)
+
             features.sg = ifelse.(rawData.sg .==1.020 , 1, 0) .+ ifelse.(rawData.sg .==1.025 , 1, 0)
+
+            features.al = ifelse.(rawData.al .== 0, 1, 0)
+
+            features.bgr = ifelse.(rawData.bgr .>= 160, 1, 0)
+
+            features.pc = ifelse.(rawData.pc .== "normal", 1, 0)
 
         end
 
@@ -203,7 +200,7 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
         # Number of transactions
         n::Int64 = size(t, 1)
 
-        mincovy::Float64 = 0.05
+        mincovy::Float64 = 0.75
         iter_lim::Int64 = 5
         RgenX::Float64 = 0.1 / n
         RgenB::Float64 = 0.1 / (n * d)
@@ -228,21 +225,15 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
             modelY,x,b=InitializeModel(cmax, RgenX, RgenB, n, d, S, t)
 
 
-            while (cmax >= n*mincovy)#et peut etre ajouter la condition itérations
-                #produit=n*mincovy
-                println("cmax : ", cmax)
+            while (cmax >= n*mincovy)
                 if iter<iter_lim
                     optimize!(modelY)
-                    println(" > optimize")
                     if termination_status(modelY) == MOI.OPTIMAL
-                        println(" >   success")
-                        println(" > iter ", iter)
                         supportTemp, rule =P(modelY,S,x,b)
                         if iter == 1
                             support = supportTemp
                         end
                         if supportTemp >= support
-                            println(" >   add rule")
                             push!(rules,append!([y],rule))
                             @constraint(modelY,  sum(b[j] for j in 1:d if rule[j]==0)+sum(1-b[j] for j in 1:d if rule[j]==1) >= 1)
                             iter += 1

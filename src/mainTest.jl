@@ -33,3 +33,5 @@ println("-- Train results")
 showStatistics(orderedRules, train)
 println("-- Test results")
 showStatistics(orderedRules, test)
+
+println("ordered rules :\n", orderedRules)
