@@ -92,31 +92,37 @@ function createFeatures(dataFolder::String, dataSet::String)
             # Add a column related  to the number of relatives
             # -> 1 column (0: no relatives, 1: at least one relative)
             features.Relative = ifelse.(rawData[!, Symbol("Siblings/Spouses Aboard")] + rawData[!, Symbol("Parents/Children Aboard")] .> 0, 1, 0)
-
-
         end
 
         if dataSet == "kidney"
-
             # add class
             features.class = ifelse.(rawData.class .== "ckd", 1, 0)
 
             #createColumns(:age, [0, 17, 50, Inf], rawData, features)
             createColumns(:age, [0, 45, Inf], rawData, features)
-            createColumns(:bp, [0, 80, Inf], rawData, features)
+            #createColumns(:bp, [0, 80, Inf], rawData, features)
 
             features.sg = ifelse.(rawData.sg .==1.020 , 1, 0) .+ ifelse.(rawData.sg .==1.025 , 1, 0)
 
-            features.al = ifelse.(rawData.al .== 0, 1, 0)
+            #features.al = ifelse.(rawData.al .== 0, 1, 0)
 
-            features.bgr = ifelse.(rawData.bgr .>= 160, 1, 0)
+            #features.bgr = ifelse.(rawData.bgr .>= 160, 1, 0)
 
-            features.pc = ifelse.(rawData.pc .== "normal", 1, 0)
+            #features.pc = ifelse.(rawData.pc .== "normal", 1, 0)
 
         end
 
-        if dataSet == "other"
-            #TODO
+        if dataSet == "flowers"
+            features.class = ifelse.(rawData.class .=="Setosa" , 1, 0) .+ ifelse.(rawData.class .=="Versicolor" , 2, 0)
+            #createColumns(:sepalLength, [0, 6, Inf], rawData, features)
+            #createColumns(:sepalWidth, [0, 3.1, Inf], rawData, features)
+            #createColumns(:petalLength, [0, 2.1,5.1, Inf], rawData, features)
+            #createColumns(:petalWidth, [0, 1,1.8, Inf], rawData, features)
+            createColumns(:sL, [0, 6, Inf], rawData, features)
+            createColumns(:sW, [0, 3.1, Inf], rawData, features)
+            createColumns(:pL, [0, 2.3,5.1, Inf], rawData, features)
+            createColumns(:pW, [0, 0.7,1.8, Inf], rawData, features)
+
         end
 
         # Shuffle the individuals
@@ -200,7 +206,9 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
         # Number of transactions
         n::Int64 = size(t, 1)
 
-        mincovy::Float64 = 0.75
+        #mincovy::Float64 = 0.90
+        #97 pour test rapide, 95 test lent
+        mincovy::Float64 = 0.95
         iter_lim::Int64 = 5
         RgenX::Float64 = 0.1 / n
         RgenB::Float64 = 0.1 / (n * d)
@@ -209,7 +217,14 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
         # Find the rules for each class
         ##################
 
-        for y = 0:1
+        listeClasses=[]
+        for i in 1:n
+            push!(listeClasses,transactionClass[i,1])
+        end
+        listeClasses= unique(listeClasses)
+        #for y = 0:1
+        #for y = 0:2
+        for y in listeClasses
             println("-- generating rules for class $y")
             S = Set{Int64}() # transactions of class y
             for i in 1:n
@@ -222,6 +237,8 @@ function createRules(dataSet::String, resultsFolder::String, train::DataFrames.D
             support=n+1
             iter = 1
             cmax = n
+            #cmax=Int(n)
+            #println("cmax=$cmax")
             modelY,x,b=InitializeModel(cmax, RgenX, RgenB, n, d, S, t)
 
 
@@ -439,7 +456,72 @@ Arguments
   - orderedRules: list of rules of the classifier (1st row = 1st rule to test)
   - dataset: the data set (1 row = 1 individual)
 """
-function showStatistics(orderedRules::DataFrames.DataFrame, dataSet::DataFrames.DataFrame)
+function goodShowStatistics(orderedRules::DataFrames.DataFrame, dataSet::DataFrames.DataFrame)
+
+
+    # Number of transactions
+    n = size(dataSet, 1)
+    nbr_classes=3
+
+    # Statistics with respect to class 0:
+    # - true positive;
+    # - true negative;
+    # - false positive;
+    # - false negative
+
+
+    confusion_matrix=zeros(Int16,nbr_classes,nbr_classes)
+
+
+
+    # For all transaction i in the data set
+    for i in 1:n
+
+        # Get the first rule satisfied by transaction i
+
+        ruleId = findfirst(all, collect(eachrow(Array{Float64, 2}(orderedRules[:, 2:end])  .<= Array{Float64, 2}(DataFrame(dataSet[i, 2:end])))))
+        # If transaction i is classified correctly (i.e., if it is a true)
+        true_y=dataSet[i, 1]+1
+        pred_y=orderedRules[ruleId, 1]+1
+        confusion_matrix[pred_y,true_y]+=1
+    end
+    println(confusion_matrix)
+
+    println("Class\tPrec.\tRecall\tSize")
+    avg_precision=0
+    avg_recall=0
+    wavg_precision=0
+    wavg_recall=0
+
+    for c in 1:nbr_classes
+        denominateur_precision=0
+        denominateur_recall=0
+        for iterateur in 1:nbr_classes
+            denominateur_precision+=confusion_matrix[c,iterateur]
+            denominateur_recall+=confusion_matrix[iterateur,c]
+        end
+
+        prec=confusion_matrix[c,c]/denominateur_precision
+        rec=confusion_matrix[c,c]/denominateur_recall
+        avg_precision+=prec
+        avg_recall+=rec
+        wavg_precision+=prec*denominateur_recall/ size(dataSet, 1)
+        wavg_recall+=rec*denominateur_recall/ size(dataSet, 1)
+
+        virgule=2
+        prec=round(prec,digits=virgule)
+        rec=round(rec,digits=virgule)
+
+        println("$c\t$prec\t$rec\t$denominateur_recall")
+    end
+    println("avg\t", round(avg_precision/nbr_classes, digits=2), "\t", round(avg_recall/nbr_classes, digits=2))
+    println("wavg\t", round(wavg_precision, digits=2), "\t", round(wavg_recall, digits=2))
+    println("")
+
+end
+
+
+function badShowStatistics(orderedRules::DataFrames.DataFrame, dataSet::DataFrames.DataFrame)
 
 
     # Number of transactions
@@ -456,17 +538,18 @@ function showStatistics(orderedRules::DataFrames.DataFrame, dataSet::DataFrames.
     tn::Int = 0
 
     # Number of individuals in each class
-    classSize = Array{Int, 1}([0, 0])
+    classSize = Array{Int, 1}([0, 0, 0])
+
+
+
 
     # For all transaction i in the data set
     for i in 1:n
 
         # Get the first rule satisfied by transaction i
         ruleId = findfirst(all, collect(eachrow(Array{Float64, 2}(orderedRules[:, 2:end])  .<= Array{Float64, 2}(DataFrame(dataSet[i, 2:end])))))
-
         # If transaction i is classified correctly (i.e., if it is a true)
         if orderedRules[ruleId, 1] == dataSet[i, 1]
-
             # If transaction i is of class 0
             if dataSet[i, 1] == 0
                 tp += 1
@@ -475,10 +558,8 @@ function showStatistics(orderedRules::DataFrames.DataFrame, dataSet::DataFrames.
                 tn += 1
                 classSize[2] += 1
             end
-
             # If it is a negative
         else
-
             # If transaction i is of class 0
             if dataSet[i, 1] == 0
                 fn += 1
